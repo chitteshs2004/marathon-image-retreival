@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env
+*.db
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+
+# AWS / Secrets — never commit these!
+.env
+*.pem
+*.key
+
+# Test / scratch scripts
+test_s3.py
+check_db.py
+
+# Uploaded images
+ocr_images/
+
+# OS
+.DS_Store
+Thumbs.db

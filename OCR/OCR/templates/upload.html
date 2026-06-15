@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarathonSnap — Upload & Train</title>
+    <meta name="description" content="Upload race photos and train the OCR model to recognize BIB numbers.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg:         #090e1a;
+            --surface:    rgba(255,255,255,0.04);
+            --surface2:   rgba(255,255,255,0.08);
+            --border:     rgba(255,255,255,0.10);
+            --accent:     #f97316;
+            --blue:       #6366f1;
+            --text:       #f1f5f9;
+            --text-muted: #94a3b8;
+            --success:    #22c55e;
+            --danger:     #ef4444;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 15% -10%, rgba(99,102,241,0.2) 0%, transparent 55%),
+                radial-gradient(ellipse 60% 40% at 85% 110%, rgba(249,115,22,0.18) 0%, transparent 50%);
+            pointer-events: none; z-index: 0;
+        }
+
+        /* ── Navbar ── */
+        nav {
+            position: sticky; top: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 40px; height: 68px;
+            background: rgba(9,14,26,0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-brand {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 1.3rem; font-weight: 800; color: var(--text);
+            text-decoration: none;
+        }
+        .nav-brand .icon-wrap {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), #ef4444);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+        }
+        .nav-links { display: flex; gap: 8px; align-items: center; }
+        .nav-link {
+            padding: 8px 18px; border-radius: 10px;
+            color: var(--text-muted); font-weight: 500; font-size: 0.9rem;
+            text-decoration: none; transition: all 0.2s;
+        }
+        .nav-link:hover { color: var(--text); background: var(--surface2); }
+        .nav-link.active { color: var(--accent); background: rgba(249,115,22,0.12); }
+
+        /* ── Layout ── */
+        .page {
+            position: relative; z-index: 1;
+            max-width: 900px; margin: 0 auto;
+            padding: 60px 24px 80px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+            align-items: start;
+        }
+        .page-intro {
+            grid-column: 1 / -1;
+            margin-bottom: 8px;
+        }
+        .page-intro h1 {
+            font-size: 2.4rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15;
+        }
+        .page-intro h1 span {
+            background: linear-gradient(135deg, var(--accent), #fbbf24);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .page-intro p {
+            color: var(--text-muted); margin-top: 10px; font-size: 1rem; line-height: 1.7;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px; padding: 32px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+        .card-header {
+            display: flex; align-items: center; gap: 14px; margin-bottom: 28px;
+        }
+        .card-icon {
+            width: 46px; height: 46px; border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem; flex-shrink: 0;
+        }
+        .card-icon.orange {
+            background: rgba(249,115,22,0.15);
+            border: 1px solid rgba(249,115,22,0.3);
+            color: var(--accent);
+        }
+        .card-icon.blue {
+            background: rgba(99,102,241,0.15);
+            border: 1px solid rgba(99,102,241,0.3);
+            color: var(--blue);
+        }
+        .card-header h2 { font-size: 1.2rem; font-weight: 700; }
+        .card-header p  { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
+
+        /* ── Upload Zone ── */
+        .upload-zone {
+            border: 2px dashed rgba(249,115,22,0.25);
+            border-radius: 16px; padding: 40px 20px;
+            text-align: center; cursor: pointer;
+            transition: all 0.3s ease; position: relative; overflow: hidden;
+            background: rgba(249,115,22,0.03);
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(249,115,22,0.07);
+            transform: scale(1.01);
+        }
+        .upload-zone input { display: none; }
+        .upload-zone-icon {
+            font-size: 2.8rem; color: var(--accent); margin-bottom: 16px;
+            display: block; transition: transform 0.3s;
+        }
+        .upload-zone:hover .upload-zone-icon { transform: translateY(-4px) scale(1.05); }
+        .upload-zone h3 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+        .upload-zone p { color: var(--text-muted); font-size: 0.83rem; }
+        .upload-zone .browse-link { color: var(--accent); font-weight: 600; }
+
+        /* ── File List ── */
+        .file-list {
+            margin-top: 18px; display: flex; flex-direction: column; gap: 8px;
+            max-height: 200px; overflow-y: auto;
+        }
+        .file-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: 10px;
+            background: var(--surface2); border: 1px solid var(--border);
+            font-size: 0.84rem;
+        }
+        .file-item i { color: var(--accent); flex-shrink:0; }
+        .file-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-item .file-size { color: var(--text-muted); font-size: 0.78rem; flex-shrink:0; }
+
+        /* ── Progress ── */
+        .progress-wrap { margin-top: 20px; }
+        .progress-label {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px; font-size: 0.84rem;
+        }
+        .progress-label span { color: var(--text-muted); font-weight: 500; }
+        .progress-label .pct { color: var(--text); font-weight: 700; }
+        .progress-bar-track {
+            height: 8px; border-radius: 100px;
+            background: var(--surface2); overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; border-radius: 100px; width: 0%;
+            background: linear-gradient(90deg, var(--accent), #fbbf24);
+            transition: width 0.3s ease;
+            position: relative; overflow: hidden;
+        }
+        .progress-bar-fill::after {
+            content: ''; position: absolute;
+            top: 0; left: -100%; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+
+        /* ── Status ── */
+        .status-msg {
+            margin-top: 14px; padding: 12px 16px; border-radius: 10px;
+            font-size: 0.87rem; font-weight: 500;
+            display: flex; align-items: center; gap: 9px;
+            display: none;
+        }
+        .status-msg.show { display: flex; }
+        .status-msg.loading { background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.25); color: var(--accent); }
+        .status-msg.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: var(--success); }
+        .status-msg.error   { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: var(--danger); }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 13px 24px; border-radius: 13px; border: none;
+            font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.95rem;
+            cursor: pointer; transition: all 0.25s; width: 100%; justify-content: center;
+            margin-top: 20px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #ef4444);
+            color: #fff; box-shadow: 0 4px 14px rgba(249,115,22,0.35);
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(249,115,22,0.45); }
+        .btn-blue {
+            background: linear-gradient(135deg, var(--blue), #4f46e5);
+            color: #fff; box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+        }
+        .btn-blue:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(99,102,241,0.45); }
+        .btn:disabled {
+            opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important;
+        }
+
+        /* ── Step indicator ── */
+        .steps {
+            grid-column: 1 / -1;
+            display: flex; align-items: center; gap: 0; margin-bottom: 8px;
+        }
+        .step {
+            display: flex; align-items: center; gap: 10px;
+            flex: 1; padding: 14px 20px; border-radius: 12px;
+            background: var(--surface); border: 1px solid var(--border);
+        }
+        .step-num {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--surface2); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.85rem; color: var(--text-muted); flex-shrink: 0;
+        }
+        .step.active .step-num { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .step.done .step-num { background: var(--success); border-color: var(--success); color: #fff; }
+        .step-info h4 { font-size: 0.88rem; font-weight: 700; }
+        .step-info p  { font-size: 0.75rem; color: var(--text-muted); }
+        .step-arrow { color: var(--text-muted); font-size: 0.9rem; padding: 0 8px; flex-shrink: 0; }
+
+        /* ── Tips ── */
+        .tips-card {
+            grid-column: 1 / -1;
+            background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.2);
+            border-radius: 16px; padding: 22px 24px;
+        }
+        .tips-card h3 {
+            font-size: 0.9rem; font-weight: 700; color: var(--blue2); margin-bottom: 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tips-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+        .tips-list li {
+            font-size: 0.84rem; color: var(--text-muted);
+            display: flex; align-items: flex-start; gap: 8px; line-height: 1.5;
+        }
+        .tips-list li i { color: var(--blue2); margin-top: 2px; flex-shrink: 0; }
+
+        /* ── Animations ── */
+        @keyframes shimmer {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .fa-spin-custom { animation: spin 1s linear infinite; }
+
+        @media (max-width: 640px) {
+            nav { padding: 0 20px; }
+            .page { grid-template-columns: 1fr; padding: 32px 16px 60px; }
+            .steps { flex-direction: column; }
+            .step-arrow { transform: rotate(90deg); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav>
+    <a href="/" class="nav-brand">
+        <div class="icon-wrap"><i class="fas fa-running"></i></div>
+        MarathonSnap
+    </a>
+    <div class="nav-links">
+        <a href="/" class="nav-link"><i class="fas fa-search"></i> Search</a>
+        <a href="/upload" class="nav-link active"><i class="fas fa-cloud-upload-alt"></i> Upload & Train</a>
+    </div>
+</nav>
+
+<div class="page">
+    <!-- ── Intro ── -->
+    <div class="page-intro">
+        <h1>Upload & <span>Train</span></h1>
+        <p>Upload race photos to AWS S3, then run OCR training to index BIB numbers for instant search.</p>
+    </div>
+
+    <!-- ── Steps ── -->
+    <div class="steps" id="steps-bar">
+        <div class="step active" id="step1">
+            <div class="step-num">1</div>
+            <div class="step-info">
+                <h4>Upload Photos</h4>
+                <p>Select &amp; send to S3</p>
+            </div>
+        </div>
+        <div class="step-arrow"><i class="fas fa-chevron-right"></i></div>
+        <div class="step" id="step2">
+            <div class="step-num">2</div>
+            <div class="step-info">
+                <h4>Run OCR Training</h4>
+                <p>Index BIB numbers</p>
+            </div>
+        </div>
+        <div class="step-arrow"><i class="fas fa-chevron-right"></i></div>
+        <div class="step" id="step3">
+            <div class="step-num">3</div>
+            <div class="step-info">
+                <h4>Search Ready</h4>
+                <p>Athletes can find photos</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Upload Card ── -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-icon orange"><i class="fas fa-cloud-upload-alt"></i></div>
+            <div>
+                <h2>Upload Photos</h2>
+                <p>PNG, JPG, JPEG supported</p>
+            </div>
+        </div>
+
+        <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" name="files" multiple accept="image/png,image/jpeg,image/jpg">
+            <i class="fas fa-images upload-zone-icon"></i>
+            <h3>Drop images here</h3>
+            <p>or <span class="browse-link">click to browse</span></p>
+        </div>
+
+        <div class="file-list" id="file-list"></div>
+        <div class="progress-wrap" id="upload-progress" style="display:none;">
+            <div class="progress-label">
+                <span>Uploading to S3…</span>
+                <span class="pct" id="upload-pct">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="upload-fill"></div>
+            </div>
+        </div>
+        <div class="status-msg" id="upload-status"></div>
+        <button class="btn btn-primary" id="upload-btn" disabled>
+            <i class="fas fa-cloud-upload-alt"></i> Upload to S3
+        </button>
+    </div>
+
+    <!-- ── Train Card ── -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-icon blue"><i class="fas fa-brain"></i></div>
+            <div>
+                <h2>OCR Training</h2>
+                <p>Process &amp; index all uploaded images</p>
+            </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="padding:18px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;">
+                <div style="font-size:0.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">What training does</div>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;">
+                    <li style="font-size:0.87rem;display:flex;align-items:center;gap:8px;color:var(--text-muted);">
+                        <i class="fas fa-check-circle" style="color:var(--accent);width:16px;"></i> Fetches images from S3 bucket
+                    </li>
+                    <li style="font-size:0.87rem;display:flex;align-items:center;gap:8px;color:var(--text-muted);">
+                        <i class="fas fa-check-circle" style="color:var(--accent);width:16px;"></i> Runs PaddleOCR text detection
+                    </li>
+                    <li style="font-size:0.87rem;display:flex;align-items:center;gap:8px;color:var(--text-muted);">
+                        <i class="fas fa-check-circle" style="color:var(--accent);width:16px;"></i> Indexes BIB numbers in database
+                    </li>
+                    <li style="font-size:0.87rem;display:flex;align-items:center;gap:8px;color:var(--text-muted);">
+                        <i class="fas fa-check-circle" style="color:var(--accent);width:16px;"></i> Skips already-processed images
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="progress-wrap" id="train-progress" style="display:none;margin-top:20px;">
+            <div class="progress-label">
+                <span>Training in progress…</span>
+                <span class="pct" id="train-pct">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="train-fill"></div>
+            </div>
+        </div>
+        <div class="status-msg" id="train-status"></div>
+        <button class="btn btn-blue" id="train-btn" onclick="startTraining()">
+            <i class="fas fa-brain"></i> Start OCR Training
+        </button>
+    </div>
+
+    <!-- ── Tips ── -->
+    <div class="tips-card">
+        <h3><i class="fas fa-lightbulb"></i> Tips for Best Results</h3>
+        <ul class="tips-list">
+            <li><i class="fas fa-check"></i> Upload high-resolution images (≥ 2MP) for better OCR accuracy.</li>
+            <li><i class="fas fa-check"></i> Ensure BIB numbers are clearly visible and not obstructed.</li>
+            <li><i class="fas fa-check"></i> Batch upload all photos before running training to minimize API calls.</li>
+            <li><i class="fas fa-check"></i> Training automatically skips previously indexed images.</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    /* ── Upload Zone ── */
+    const zone    = document.getElementById('upload-zone');
+    const input   = document.getElementById('file-input');
+    const fileList = document.getElementById('file-list');
+    const upBtn   = document.getElementById('upload-btn');
+    let pendingFiles = [];
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault(); zone.classList.remove('drag-over');
+        renderFiles(e.dataTransfer.files);
+    });
+    input.addEventListener('change', () => renderFiles(input.files));
+
+    function formatBytes(b) {
+        if (b < 1024) return b + ' B';
+        if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+        return (b/1024/1024).toFixed(1) + ' MB';
+    }
+
+    function renderFiles(files) {
+        pendingFiles = Array.from(files);
+        fileList.innerHTML = '';
+        pendingFiles.forEach(f => {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.innerHTML = `<i class="fas fa-image"></i><span>${f.name}</span><span class="file-size">${formatBytes(f.size)}</span>`;
+            fileList.appendChild(item);
+        });
+        upBtn.disabled = pendingFiles.length === 0;
+    }
+
+    /* ── Upload to S3 ── */
+    upBtn.addEventListener('click', () => {
+        if (pendingFiles.length === 0) return;
+        const prog  = document.getElementById('upload-progress');
+        const fill  = document.getElementById('upload-fill');
+        const pct   = document.getElementById('upload-pct');
+        const stat  = document.getElementById('upload-status');
+
+        prog.style.display = 'block';
+        setStatus('upload-status', 'Uploading images…', 'loading');
+        upBtn.disabled = true;
+        upBtn.innerHTML = '<i class="fas fa-spinner fa-spin-custom"></i> Uploading…';
+
+        let uploaded = 0, totalSize = pendingFiles.reduce((a, f) => a + f.size, 0);
+
+        const promises = pendingFiles.map(file => {
+            return new Promise((res, rej) => {
+                const fd = new FormData(); fd.append('files', file);
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/upload');
+                xhr.upload.onprogress = e => {
+                    uploaded += e.loaded;
+                    const p = Math.min(98, Math.round(uploaded / totalSize * 100));
+                    fill.style.width = p + '%'; pct.textContent = p + '%';
+                };
+                xhr.onload = () => xhr.status === 200 ? res() : rej();
+                xhr.onerror = rej;
+                xhr.send(fd);
+            });
+        });
+
+        Promise.all(promises)
+            .then(() => {
+                fill.style.width = '100%'; pct.textContent = '100%';
+                setStatus('upload-status', `${pendingFiles.length} image(s) uploaded successfully!`, 'success');
+                upBtn.innerHTML = '<i class="fas fa-check"></i> Uploaded!';
+                document.getElementById('step1').classList.add('done');
+                document.getElementById('step2').classList.add('active');
+            })
+            .catch(() => {
+                setStatus('upload-status', 'Upload failed. Please try again.', 'error');
+                upBtn.disabled = false;
+                upBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Retry Upload';
+            });
+    });
+
+    /* ── Training ── */
+    function startTraining() {
+        const prog = document.getElementById('train-progress');
+        const fill = document.getElementById('train-fill');
+        const pct  = document.getElementById('train-pct');
+        const btn  = document.getElementById('train-btn');
+
+        prog.style.display = 'block';
+        setStatus('train-status', 'OCR training in progress… this may take several minutes.', 'loading');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin-custom"></i> Training…';
+
+        let p = 0;
+        fill.style.width = '5%'; pct.textContent = '5%';
+        const interval = setInterval(() => {
+            p = Math.min(p + Math.random() * 3, 88);
+            fill.style.width = p.toFixed(0) + '%';
+            pct.textContent = p.toFixed(0) + '%';
+        }, 600);
+
+        fetch('/train', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(interval);
+                fill.style.width = '100%'; pct.textContent = '100%';
+                if (data.status === 'completed') {
+                    setStatus('train-status', 'Training completed! Athletes can now search for their photos.', 'success');
+                    btn.innerHTML = '<i class="fas fa-check"></i> Training Complete';
+                    document.getElementById('step2').classList.add('done');
+                    document.getElementById('step3').classList.add('active');
+                } else {
+                    setStatus('train-status', 'Training returned an unexpected response.', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-brain"></i> Retry Training';
+                }
+            })
+            .catch(() => {
+                clearInterval(interval);
+                setStatus('train-status', 'Training failed. Check server logs.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-brain"></i> Retry Training';
+            });
+    }
+
+    function setStatus(id, msg, type) {
+        const el = document.getElementById(id);
+        const icons = { loading: 'fa-spinner fa-spin-custom', success: 'fa-circle-check', error: 'fa-circle-exclamation' };
+        el.className = `status-msg show ${type}`;
+        el.innerHTML = `<i class="fas ${icons[type]}"></i> ${msg}`;
+    }
+</script>
+</body>
+</html>
