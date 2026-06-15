@@ -17,9 +17,6 @@ __pycache__/
 *.pem
 *.key
 
-# Uploaded images
-ocr_images/
-
 # OS
 .DS_Store
 Thumbs.db
