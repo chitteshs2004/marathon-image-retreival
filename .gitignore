@@ -5,12 +5,6 @@ __pycache__/
 *.pyd
 *.env
 .env
-*.db
-
-# Virtual environment
-venv/
-.venv/
-env/
 
 # IDE
 .idea/
@@ -22,10 +16,6 @@ env/
 .env
 *.pem
 *.key
-
-# Test / scratch scripts
-test_s3.py
-check_db.py
 
 # Uploaded images
 ocr_images/
